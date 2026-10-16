@@ -1,0 +1,17 @@
+name: vrlizate_assistant
+description: Optional provider-neutral contextual assistance and local visual snapshots for VRlizate hosts.
+version: 0.1.0-beta.1
+publish_to: none
+
+environment:
+  sdk: ^3.10.8
+  flutter: '>=3.47.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
