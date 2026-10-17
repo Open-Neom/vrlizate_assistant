@@ -1,6 +1,23 @@
 library;
 
-export 'src/vr_assistant_models.dart';
-export 'src/vr_assistant_controller.dart';
-export 'src/vr_assistant_capture.dart';
-export 'src/vr_assistant_surface.dart';
+export 'data/providers/vr_neomage_assistant_provider.dart';
+export 'data/providers/vr_universal_ai_provider.dart';
+export 'domain/models/vr_ai_provider_config.dart';
+export 'domain/models/vr_assistant_capture_lease.dart';
+export 'domain/models/vr_assistant_context.dart';
+export 'domain/models/vr_assistant_reply.dart';
+export 'domain/models/vr_assistant_request.dart';
+export 'domain/models/vr_assistant_tool_definition.dart';
+export 'domain/services/vr_assistant_capture_controller.dart';
+export 'domain/services/vr_assistant_controller.dart';
+export 'domain/services/vr_assistant_provider.dart';
+export 'domain/services/vr_assistant_tool_registry.dart';
+export 'domain/services/vr_neomage_agent_bridge.dart';
+export 'ui/vr_assistant_boundary.dart';
+export 'ui/vr_assistant_render_boundary.dart';
+export 'ui/vr_assistant_surface.dart';
+export 'ui/vr_assistant_surface_state.dart';
+export 'utils/constants/vr_assistant_constants.dart';
+export 'utils/constants/vr_assistant_translation_constants.dart';
+export 'utils/enums/vr_ai_provider_type.dart';
+export 'utils/enums/vr_assistant_state.dart';

@@ -1,43 +1,88 @@
 # vrlizate_assistant
 
-Módulo opcional de asistencia contextual del VRlizate SDK, `0.1.0-beta.1`.
-Incluye contratos de proveedor, consultas con límites y capturas locales de la
-experiencia. **No incluye un modelo de IA, credenciales, reconocimiento de voz,
-síntesis de voz ni una conexión propia a Itzli/SAIA.** El anfitrión suministra el
-adaptador que reutiliza esos servicios cuando están disponibles.
+Módulo de asistencia espacial contextual e inteligencia artificial del **Open Neom VRlizate SDK (`1.0.0`)**.
 
-## Responsabilidades
+Proporciona contratos inmutables de contexto 3D, capturas visuales locales del viewport (estéreo/mono), un registro de herramientas espaciales (`VrAssistantToolRegistry`), integración nativa con **`neomage`** (`VrNeomageAssistantProvider` / `VrNeomageAgentBridge`) y un proveedor universal de modelos de lenguaje (`VrUniversalAiProvider`) compatible con **OpenAI, Google Gemini, Anthropic Claude, Ollama, Groq y DeepSeek**.
 
-- `VrAssistantContext`: copia inmutable de experiencia, título, datos de contexto
-  y acciones propuestas que el anfitrión desea ofrecer. Los datos aceptan valores
-  JSON finitos, mapas con claves de texto y listas; máximo 4096 entradas y doce
-  niveles. No se retienen referencias mutables al mundo.
-- `VrAssistantProvider`: recibe una pregunta con contexto y, opcionalmente, una
-  imagen PNG/JPEG. Devuelve texto y una propuesta de acción. El anfitrión conserva
-  la validación de permisos, argumentos y vigencia de la sesión.
-- `VrAssistantController`: una consulta real a la vez, cancelación lógica,
-  descarte de resultados antiguos y estado para la interfaz. No ejecuta acciones.
-- `VrAssistantCaptureController`: una fuente activa y una captura real a la vez.
-  Las concesiones impiden que una sala anterior desregistre la actual.
-- `VrAssistantSurface`: captura puntual de la capa Flutter ya compuesta. En
-  estéreo recorta el ojo izquierdo antes de reservar la imagen; en mono conserva
-  toda la vista. PNG, máximo 768 píxeles por dimensión y sin escalado hacia arriba.
+## Arquitectura (`neom_modules`)
 
-No se activa un servidor LAN ni se abre el micrófono. No se captura por frame.
-El anfitrión pide una captura explícitamente mediante `includeImage: true`, y
-debe informar al usuario si su proveedor la enviará a un servicio remoto.
+- `lib/utils/constants/`
+  - `VrAssistantConstants`: límites, firmas MIME, cabeceras HTTP, claves JSON y endpoints predeterminados.
+  - `VrAssistantTranslationConstants`: textos de estado y mensajes de validación.
+- `lib/utils/enums/`
+  - `VrAiProviderType`: `neomage`, `openAiCompatible`, `gemini`, `anthropic`, `ollama`, `custom`.
+  - `VrAssistantState`: `idle`, `capturingContext`, `thinking`, `responding`, `executingAction`, `error`.
+- `lib/domain/models/`
+  - `VrAssistantContext`: copia inmutable de la escena activa (`experienceId`, `title`, `details`, `allowedActions`).
+  - `VrAssistantRequest`: pregunta del usuario + `VrAssistantContext` + captura PNG/JPEG opcional.
+  - `VrAssistantReply`: respuesta textual y propuesta opcional de acción espacial (`action`, `arguments`).
+  - `VrAiProviderConfig`: configuración inmutable con presets `.neomage()`, `.gemini()`, `.openAi()`, `.anthropic()` y `.ollama()`.
+  - `VrAssistantToolDefinition`: esquema JSON y manejador para herramientas/acciones espaciales.
+  - `VrAssistantCaptureLease`: concesión opaca de superficie activa.
+- `lib/domain/services/`
+  - `VrAssistantProvider`: interfaz para cualquier proveedor de asistencia espacial.
+  - `VrAssistantController`: orquestación con exclusión de consultas en vuelo, cancelación lógica, timeouts y estado reactivo (`ChangeNotifier`).
+  - `VrAssistantCaptureController`: gestor de captura local de una sola fuente activa.
+  - `VrAssistantToolRegistry`: registro, generación de esquemas de herramientas, validación de `allowedActions` y ejecución segura de acciones espaciales.
+  - `VrNeomageAgentBridge`: puente y adaptador de formato para sesiones y agentes `neomage`.
+- `lib/data/providers/`
+  - `VrUniversalAiProvider`: cliente listo para usar con OpenAI, Gemini, Anthropic Claude y Ollama (texto + imagen base64 + llamadas a herramientas).
+  - `VrNeomageAssistantProvider`: adaptador directo para conectar agentes `neomage` como asistente espacial VR.
+- `lib/ui/`
+  - `VrAssistantSurface`: widget de captura puntual de la capa compuesta de Flutter (recorte del ojo izquierdo en estéreo, límite de 768 px por dimensión).
 
-## Uso
+## Uso con `neomage` o Proveedores Universales (Gemini, OpenAI, Claude, Ollama)
 
 ```dart
-final captures = VrAssistantCaptureController();
-final assistant = VrAssistantController(provider: myItzliAdapter);
+import 'package:vrlizate_assistant/vrlizate_assistant.dart';
 
-final view = VrAssistantSurface(
-  captureController: captures,
-  active: experienceActive && routeIsCurrent,
-  stereo: true,
-  child: experience,
+final tools = VrAssistantToolRegistry(
+  initialTools: [
+    VrAssistantToolDefinition(
+      name: 'openRoom',
+      description: 'Abre una sala espacial por su identificador.',
+      parameterSchema: {
+        'type': 'object',
+        'properties': {
+          'room': {'type': 'string'},
+        },
+        'required': ['room'],
+      },
+      handler: (args) async => 'Opened ${args['room']}',
+    ),
+  ],
+);
+
+// Opción A: Proveedor universal (Gemini, OpenAI, Anthropic, Ollama)
+final provider = VrUniversalAiProvider(
+  config: VrAiProviderConfig.gemini(apiKey: '<GEMINI_API_KEY>'),
+  toolRegistry: tools,
+);
+
+// Opción B: Puente directo con el motor agéntico `neomage`
+final neomageProvider = VrNeomageAssistantProvider(
+  toolRegistry: tools,
+  onQuery: (payload) async {
+    // Enviar payload (compatible con Message y ToolDefinition de neomage)
+    return {
+      'role': 'assistant',
+      'content': [
+        {'type': 'text', 'text': 'Abriendo la sala de cine.'},
+        {
+          'type': 'tool_use',
+          'id': 'call_1',
+          'name': 'openRoom',
+          'input': {'room': 'cinema'},
+        },
+      ],
+    };
+  },
+);
+
+final captures = VrAssistantCaptureController();
+final assistant = VrAssistantController(
+  provider: provider,
+  toolRegistry: tools,
 );
 
 final reply = await assistant.ask(
@@ -45,58 +90,29 @@ final reply = await assistant.ask(
   context: VrAssistantContext(
     experienceId: 'home',
     title: 'Plaza VRlizate',
-    details: {'room': 'cinema', 'availableControls': ['play', 'back']},
+    details: {'room': 'lobby', 'availableControls': ['play', 'back']},
     allowedActions: {'openRoom'},
   ),
   capture: captures.capture,
   includeImage: true,
 );
-// El host muestra reply.text y valida reply.action antes de actuar.
+
+if (reply != null && reply.hasAction) {
+  await assistant.executeLastAction(allowedActions: {'openRoom'});
+}
 ```
 
-`allowedActions` es contexto para el proveedor; no concede permisos. Una respuesta
-no debe abrir rutas, ejecutar código ni modificar datos sin pasar por las reglas
-del anfitrión. Las capturas son contexto visual y tampoco conceden autoridad.
+## Límites y Ciclo de Vida
 
-El controlador es dueño de su proveedor y llama `provider.dispose()` al cerrarse.
-Un adaptador de un servicio compartido debe implementar `dispose()` liberando
-solo sus propios recursos, sin cerrar el servicio global de Open Neom.
-
-## Límites y ciclo de vida
-
-La pregunta admite hasta 4000 unidades UTF-16 y 16000 bytes UTF-8. Las imágenes se
-limitan a 4 MiB. Se verifica su firma PNG/JPEG antes de enviar al proveedor; el
-adaptador conserva la responsabilidad de validación específica de su API.
-Timeouts predeterminados: captura tres segundos y consulta treinta segundos.
-
-`cancel()` y los timeouts resuelven al llamador y descartan respuestas tardías.
-No pueden detener por la fuerza una captura GPU o una solicitud del proveedor:
-`busy` sigue activo hasta que termina la operación real, evitando solicitudes
-solapadas. El adaptador debe tener sus propios límites de transporte. Se devuelve
-`null` al pedir mientras hay otra operación, al cancelar o después de `dispose()`.
-
-La superficie se desregistra al pasar a segundo plano, quedar inactiva o cerrarse.
-El anfitrión debe desactivarla también para rutas privadas o modales que oculten
-la experiencia; el paquete no inspecciona su navegación. Las imágenes no se
-almacenan en disco ni se mantienen como caché del controlador.
-
-La captura de texturas externas, vídeo protegido o vistas nativas requiere
-verificación en cada plataforma. No se promete que toda textura aparezca ni que
-la captura sea gratuita para el rendimiento. Utilizar contexto estructurado como
-primera opción y capturas puntuales cuando aporten información.
+- Preguntas limitadas a 4000 caracteres UTF-16 y 16000 bytes UTF-8.
+- Capturas limitadas a 4 MiB, verificando firma PNG o JPEG antes de enviarse al proveedor.
+- Timeouts predeterminados: captura 3 segundos y consulta 30 segundos.
+- `VrAssistantSurface` se desregistra automáticamente al pasar a segundo plano, desactivarse o desmontarse.
 
 ## Validación
-
-Las pruebas incluidas verifican cancelación, timeout, exclusión de solicitudes,
-inmutabilidad, concesiones de captura, ciclo de vida y captura PNG real de la
-capa Flutter, incluido el recorte de un ojo. Ejecutar desde este paquete:
 
 ```sh
 flutter pub get
 flutter test
 flutter analyze
 ```
-
-La existencia de estas pruebas no acredita una ejecución física ni una consulta
-a un proveedor remoto. Integración de voz, conectividad, calidad de respuestas y
-coste GPU requieren validación del anfitrión con su adaptador y dispositivos.

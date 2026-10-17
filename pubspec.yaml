@@ -1,7 +1,8 @@
 name: vrlizate_assistant
-description: Optional provider-neutral contextual assistance and local visual snapshots for VRlizate hosts.
-version: 0.1.0-beta.1
-publish_to: none
+description: Contextual spatial AI assistance, local viewport snapshots, tool registry, and Neomage / universal LLM providers for VRlizate hosts.
+version: 1.0.0
+homepage: https://github.com/Open-Neom/vrlizate_assistant
+repository: https://github.com/Open-Neom/vrlizate_assistant
 
 environment:
   sdk: ^3.10.8
